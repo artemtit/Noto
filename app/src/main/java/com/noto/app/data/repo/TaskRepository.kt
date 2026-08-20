@@ -34,6 +34,9 @@ class TaskRepository(private val dao: TaskDao) {
     suspend fun tasksOnDateExcept(iso: String, excludeId: Long): List<Task> =
         dao.tasksOnDateExcept(iso, excludeId).map { it.toModel() }
 
+    suspend fun openTasks(limit: Int = 100): List<Task> =
+        dao.openTasks(limit).map { it.toModel() }
+
     suspend fun insert(task: Task): Long = dao.insert(TaskEntity.fromModel(task))
 
     suspend fun update(task: Task) {

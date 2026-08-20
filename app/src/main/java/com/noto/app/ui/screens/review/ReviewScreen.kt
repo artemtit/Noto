@@ -53,12 +53,21 @@ fun ReviewScreen(
             )
         },
         bottomBar = {
-            val count = state.items.size
+            val tasksCount = state.items.size
+            val actionsCount = state.actions.size
+            val total = tasksCount + actionsCount
+            val ru = java.util.Locale.getDefault().language == "ru"
+            val label = when {
+                total == 0 -> stringResource(R.string.create_n_tasks, 0)
+                tasksCount == 0 -> if (ru) "Применить $actionsCount" else "Apply $actionsCount"
+                actionsCount == 0 -> stringResource(R.string.create_n_tasks, tasksCount)
+                else -> if (ru) "Готово ($total)" else "Done ($total)"
+            }
             Button(
                 onClick = vm::confirm,
-                enabled = !state.loading && state.error == null && count > 0,
+                enabled = !state.loading && state.error == null && total > 0,
                 modifier = Modifier.fillMaxWidth().padding(20.dp),
-            ) { Text(stringResource(R.string.create_n_tasks, count)) }
+            ) { Text(label) }
         },
     ) { inner ->
         Box(Modifier.fillMaxSize().padding(inner)) {
@@ -79,12 +88,16 @@ fun ReviewScreen(
                         )
                         Spacer(Modifier.height(8.dp))
                     }
+                    items(state.actions, key = { it.id }) { action ->
+                        ActionRow(action = action, onRemove = { vm.removeAction(action.id) })
+                    }
                     items(state.items, key = { it.id }) { item ->
                         ReviewRow(
                             item = item,
                             projects = state.projects,
                             onChange = { updated -> vm.updateItem(item.id) { updated } },
                             onPickSlot = { slot -> vm.pickSlot(item.id, slot) },
+                            onRegenerateSlots = { vm.regenerateSlots(item.id) },
                             onAddChecklist = { text -> vm.addChecklistItem(item.id, text) },
                             onRemoveChecklist = { index -> vm.removeChecklistItem(item.id, index) },
                             onRemove = { vm.remove(item.id) },
@@ -128,6 +141,7 @@ private fun ReviewRow(
     projects: List<com.noto.app.domain.model.Project>,
     onChange: (ReviewItem) -> Unit,
     onPickSlot: (LocalTime) -> Unit,
+    onRegenerateSlots: () -> Unit,
     onAddChecklist: (String) -> Unit,
     onRemoveChecklist: (Int) -> Unit,
     onRemove: () -> Unit,
@@ -212,6 +226,10 @@ private fun ReviewRow(
                         label = { Text(DateTimeUtils.formatTime(slot)) },
                     )
                 }
+                AssistChip(
+                    onClick = onRegenerateSlots,
+                    label = { Text(if (ru) "↻ ещё" else "↻ more") },
+                )
             }
         }
 
@@ -349,6 +367,30 @@ private fun ReviewRow(
             },
             confirmButton = { TextButton(onClick = { showRecurrence = false }) { Text(stringResource(R.string.done)) } }
         )
+    }
+}
+
+@Composable
+private fun ActionRow(action: ReviewAction, onRemove: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(cs.primaryContainer.copy(alpha = 0.5f))
+            .border(1.dp, cs.primary.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            action.description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = cs.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onRemove) {
+            Icon(Icons.Rounded.Close, contentDescription = null)
+        }
     }
 }
 

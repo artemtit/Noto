@@ -44,6 +44,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE reminderEnabled = 1 AND completed = 0 AND dueDate IS NOT NULL AND dueTime IS NOT NULL")
     suspend fun tasksWithReminders(): List<TaskEntity>
 
+    @Query("SELECT * FROM tasks WHERE completed = 0 ORDER BY dueDate ASC, dueTime ASC, createdAt DESC LIMIT :limit")
+    suspend fun openTasks(limit: Int): List<TaskEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(task: TaskEntity): Long
 

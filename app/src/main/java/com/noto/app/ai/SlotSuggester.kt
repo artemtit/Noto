@@ -32,6 +32,7 @@ object SlotSuggester {
         rhythm: RhythmProfile,
         durationMinutes: Int = 30,
         count: Int = 3,
+        excluding: Set<LocalTime> = emptySet(),
     ): List<LocalTime> {
         val windowStart = LocalTime.of(rhythm.workStart.coerceIn(0, 23), 0)
         val windowEnd = LocalTime.of(rhythm.workEnd.coerceIn(1, 23), 0)
@@ -50,7 +51,7 @@ object SlotSuggester {
         while (!cur.plusMinutes(durationMinutes.toLong()).isAfter(windowEnd)) {
             val end = cur.plusMinutes(durationMinutes.toLong())
             val clash = busy.any { (bs, be) -> cur.isBefore(be) && bs.isBefore(end) }
-            if (!clash) candidates.add(cur)
+            if (!clash && cur !in excluding) candidates.add(cur)
             cur = cur.plusMinutes(30)
         }
         if (candidates.size <= count) return candidates

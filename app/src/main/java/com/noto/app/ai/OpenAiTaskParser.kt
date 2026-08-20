@@ -5,8 +5,10 @@ import com.noto.app.core.AppConfig
 import com.noto.app.core.AppError
 import com.noto.app.core.AppResult
 import com.noto.app.data.prefs.SettingsRepository
+import com.noto.app.domain.model.ExistingTaskRef
 import com.noto.app.domain.model.ParsedTask
 import com.noto.app.domain.model.Priority
+import com.noto.app.domain.model.TaskAction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -20,6 +22,7 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -49,11 +52,12 @@ class OpenAiTaskParser(
         knownProjects: List<String>,
         busyToday: List<BusySlot>,
         rhythm: SettingsRepository.RhythmProfile,
-    ): AppResult<List<ParsedTask>> = withContext(Dispatchers.IO) {
+        existingTasks: List<ExistingTaskRef>,
+    ): AppResult<ParseResult> = withContext(Dispatchers.IO) {
         val cfg = settings.currentAi()
         if (cfg.apiKey.isBlank()) return@withContext AppResult.Err(AppError.NoApiKey)
 
-        val system = buildSystemPrompt(now, locale, knownProjects, busyToday, rhythm)
+        val system = buildSystemPrompt(now, locale, knownProjects, busyToday, rhythm, existingTasks)
         val body = buildJsonObject {
             put("model", cfg.model)
             put("temperature", 0.0)
@@ -86,11 +90,12 @@ class OpenAiTaskParser(
                     Log.w(TAG, "AI extract failed")
                     return@withContext AppResult.Err(AppError.BadResponse)
                 }
-                val tasks = runCatching { parseTasksJson(content) }.getOrElse { e ->
-                    Log.w(TAG, "AI parse failed: ${e.message} content=${content.take(300)}")
-                    return@withContext AppResult.Err(AppError.BadResponse)
-                }
-                AppResult.Ok(tasks)
+                val parsed = runCatching { parseResponseJson(content, existingTasks.map { it.id }.toSet()) }
+                    .getOrElse { e ->
+                        Log.w(TAG, "AI parse failed: ${e.message} content=${content.take(300)}")
+                        return@withContext AppResult.Err(AppError.BadResponse)
+                    }
+                AppResult.Ok(parsed)
             }
         } catch (e: UnknownHostException) {
             Log.w(TAG, "AI network: ${e.message}")
@@ -104,10 +109,15 @@ class OpenAiTaskParser(
         }
     }
 
-    fun parseTasksJson(content: String): List<ParsedTask> {
+    /** Legacy JSON parser: creates ParseResult with tasks-only (no actions). Used by tests. */
+    fun parseTasksJson(content: String): List<ParsedTask> =
+        parseResponseJson(content, knownIds = emptySet()).tasks
+
+    fun parseResponseJson(content: String, knownIds: Set<Long>): ParseResult {
         val root = json.parseToJsonElement(content).jsonObject
-        val array = root["tasks"]?.jsonArray ?: return emptyList()
-        return array.mapNotNull { el -> parseOne(el.jsonObject) }
+        val tasks = root["tasks"]?.jsonArray?.mapNotNull { el -> parseOne(el.jsonObject) }.orEmpty()
+        val actions = root["actions"]?.jsonArray?.mapNotNull { el -> parseAction(el.jsonObject, knownIds) }.orEmpty()
+        return ParseResult(tasks, actions)
     }
 
     private fun extractContent(raw: String): String? = runCatching {
@@ -158,6 +168,21 @@ class OpenAiTaskParser(
         )
     }
 
+    private fun parseAction(o: JsonObject, knownIds: Set<Long>): TaskAction? {
+        val kind = when (o.str("action")?.lowercase()) {
+            "complete", "done", "finish" -> TaskAction.Kind.COMPLETE
+            "delete", "remove" -> TaskAction.Kind.DELETE
+            "reschedule", "move", "postpone" -> TaskAction.Kind.RESCHEDULE
+            else -> return null
+        }
+        val id = (o["taskId"] as? JsonPrimitive)?.longOrNull ?: return null
+        // Guard against hallucinated ids — only accept those we passed in.
+        if (knownIds.isNotEmpty() && id !in knownIds) return null
+        val newDate = o.str("newDate")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        val newTime = o.str("newTime")?.let { parseHm(it) }
+        return TaskAction(kind = kind, taskId = id, newDate = newDate, newTime = newTime)
+    }
+
     private fun parseHm(s: String): LocalTime? =
         runCatching { LocalTime.parse(s, DateTimeFormatter.ofPattern("HH:mm")) }.getOrNull()
             ?: runCatching { LocalTime.parse(s) }.getOrNull()
@@ -170,6 +195,7 @@ class OpenAiTaskParser(
         knownProjects: List<String>,
         busy: List<BusySlot>,
         rhythm: SettingsRepository.RhythmProfile,
+        existingTasks: List<ExistingTaskRef>,
     ): String {
         val today = now.toLocalDate()
         val time = now.toLocalTime().withNano(0)
@@ -181,17 +207,31 @@ class OpenAiTaskParser(
             "${it.start.toString().padStart(5, '0').take(5)}-${end.toString().padStart(5, '0').take(5)}"
         }
         val workRange = "${"%02d".format(rhythm.workStart)}:00-${"%02d".format(rhythm.workEnd)}:00"
+        val tasksStr = if (existingTasks.isEmpty()) "(none)" else existingTasks.joinToString("\n") { t ->
+            val w = t.whenLabel?.let { " ($it)" }.orEmpty()
+            "  ${t.id} - ${t.title}$w"
+        }
         return """
-You extract a structured task list from a short user voice note.
+You extract structured actions from a short user voice note.
 Return STRICT JSON only. No prose. No markdown fences. Shape:
-{"tasks":[{"title":"...","description":null,"startDate":"YYYY-MM-DD" or null,"dueDate":"YYYY-MM-DD" or null,"dueTime":"HH:mm" or null,"estimatedMinutes":<int> or null,"suggestedSlots":["HH:mm",...] or [],"checklist":["step 1","step 2",...] or [],"priority":"low"|"medium"|"high","project":"..." or null,"reminder":true|false}]}
+{"tasks":[{"title":"...","description":null,"startDate":"YYYY-MM-DD" or null,"dueDate":"YYYY-MM-DD" or null,"dueTime":"HH:mm" or null,"estimatedMinutes":<int> or null,"suggestedSlots":["HH:mm",...] or [],"checklist":["step 1","step 2",...] or [],"priority":"low"|"medium"|"high","project":"..." or null,"reminder":true|false}],
+ "actions":[{"action":"complete"|"delete"|"reschedule","taskId":<long>,"newDate":"YYYY-MM-DD" or null,"newTime":"HH:mm" or null}]}
 
 Context:
 - Today is $today. Current time is $time. Timezone: $zone. Language: $lang.
 - User's active window today: $workRange.
 - Slots already busy today (existing tasks/events): $busyStr.
+- Currently open tasks (id, title, when):
+$tasksStr
 
-Rules:
+Decide first: does the user want to CREATE a new task, or MODIFY / COMPLETE / DELETE an existing one?
+- If the utterance is a command on an existing task ("отметь стрижку выполненной", "убери молоко из списка", "перенеси стирку на завтра", "перекинь встречу на 19:00", "mark haircut done", "delete milk", "reschedule laundry to tomorrow") — emit an entry in `actions` targeting the matching task's id from the list above. Leave `tasks` empty for that utterance.
+- If nothing matches confidently, do NOT invent an id. Leave `actions` empty and create a new task instead.
+- For RESCHEDULE: fill `newDate` and/or `newTime` from the utterance.
+- For COMPLETE: only `action` + `taskId`.
+- For DELETE: only `action` + `taskId`. Prefer complete over delete when ambiguous.
+
+Rules for `tasks` (new tasks):
 - Resolve relative expressions (today, tomorrow, next Monday, in an hour, evening, morning, end of week, next week, "после школы", "через 3 дня", etc.) to concrete dueDate / dueTime using today's date and time.
 - RANGE tasks: when the user says "к 1 сентября", "до пятницы", "by Sept 1" — startDate = today, dueDate = the deadline.
 - If the user says "on Sept 1" / "1 сентября сделать X" — set only dueDate, leave startDate null.
@@ -204,19 +244,18 @@ DURATION:
 - estimatedMinutes = your best guess of how long the task takes (haircut 60, quick call 15, dentist 45, workout 60, meeting 30, buy groceries 30, homework 45). Prefer null only when totally unclear.
 
 CHECKLIST:
-- If the user names ONE main task and lists sub-steps under it ("чек-лист", "по списку", "с пунктами", "нужно сделать: X, Y, Z", "checklist", enumerations like "во-первых…, во-вторых…", or explicit lists of items to buy / prepare / bring), produce ONE task object with the parent action as `title` and the sub-steps in `checklist`. Do NOT create a separate task per sub-step.
-- If the user actually lists several independent tasks (each a full action of its own, unrelated to a common parent), then create multiple task objects and leave `checklist` empty.
-- Each checklist item is a short imperative phrase (2-6 words), one action. Strip filler. Preserve the input language.
-- Do NOT invent items the user didn't mention. Do NOT put the whole title into the checklist.
-- If there are no explicit sub-steps, `checklist` = [].
+- If the user names ONE main task and lists sub-steps under it, produce ONE task object with the parent action as `title` and the sub-steps in `checklist`. Do NOT create a separate task per sub-step.
+- If the user actually lists several independent tasks, then create multiple task objects and leave `checklist` empty.
+- Each checklist item is a short imperative phrase (2-6 words), one action. Strip filler.
+- If no explicit sub-steps, `checklist` = [].
 
 EXAMPLES:
 - Input: "Постричься чек-лист помыть голову взять деньги позвонить парикмахеру"
-  → {"tasks":[{"title":"Постричься","checklist":["Помыть голову","Взять деньги","Позвонить парикмахеру"],...}]}
-- Input: "Купить продукты нужно молоко хлеб сыр"
-  → {"tasks":[{"title":"Купить продукты","checklist":["Молоко","Хлеб","Сыр"],...}]}
-- Input: "Позвонить маме и сходить в спортзал"
-  → {"tasks":[{"title":"Позвонить маме","checklist":[],...},{"title":"Сходить в спортзал","checklist":[],...}]}
+  → {"tasks":[{"title":"Постричься","checklist":["Помыть голову","Взять деньги","Позвонить парикмахеру"],...}],"actions":[]}
+- Input: "Отметь стрижку как выполненную"
+  → {"tasks":[],"actions":[{"action":"complete","taskId":<id-of-стрижка>}]}
+- Input: "Перенеси стирку на завтра в 19"
+  → {"tasks":[],"actions":[{"action":"reschedule","taskId":<id-of-стирка>,"newDate":"...","newTime":"19:00"}]}
 
 SLOT SUGGESTIONS:
 - If the user asked YOU to pick a time ("подбери время", "выбери время", "во сколько лучше", "когда сделать", "pick a time", "what time works") AND dueTime is null → return 3 concrete suggestedSlots for the given day.
@@ -233,7 +272,7 @@ TITLE POLISHING:
 - Prefer matching an existing project when intent obviously fits. Known projects: $projects.
 - reminder = true unless the user explicitly says no reminder.
 
-Return one task object per user task. If the note contains no actionable tasks, return {"tasks":[]}.
+If the note contains no actionable tasks and no commands, return {"tasks":[],"actions":[]}.
 """.trimIndent()
     }
 
