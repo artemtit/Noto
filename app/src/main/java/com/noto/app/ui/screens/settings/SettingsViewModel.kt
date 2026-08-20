@@ -6,6 +6,7 @@ import com.noto.app.data.prefs.SettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
@@ -24,31 +25,42 @@ class SettingsViewModel(private val repo: SettingsRepository) : ViewModel() {
     init {
         viewModelScope.launch {
             val ai = repo.currentAi()
-            _state.value = _state.value.copy(apiKey = ai.apiKey, baseUrl = ai.baseUrl, model = ai.model)
+            _state.update { it.copy(apiKey = ai.apiKey, baseUrl = ai.baseUrl, model = ai.model) }
         }
         viewModelScope.launch {
-            repo.observeTheme().collect { theme -> _state.value = _state.value.copy(theme = theme) }
+            repo.observeTheme().collect { theme -> _state.update { it.copy(theme = theme) } }
         }
         viewModelScope.launch {
-            repo.observeCalendarSync().collect { on -> _state.value = _state.value.copy(calendarSync = on) }
+            repo.observeCalendarSync().collect { on -> _state.update { it.copy(calendarSync = on) } }
         }
         viewModelScope.launch {
-            repo.observeRhythm().collect { r -> _state.value = _state.value.copy(rhythm = r) }
+            repo.observeRhythm().collect { r -> _state.update { it.copy(rhythm = r) } }
         }
     }
 
-    fun setWorkStart(hour: Int) {
-        val r = _state.value.rhythm.copy(workStart = hour.coerceIn(0, 23))
-        viewModelScope.launch { repo.setRhythm(r) }
+    fun setApiKey(v: String) {
+        _state.update { it.copy(apiKey = v) }
+        viewModelScope.launch { repo.setApiKey(v) }
     }
-    fun setWorkEnd(hour: Int) {
-        val r = _state.value.rhythm.copy(workEnd = hour.coerceIn(1, 24))
-        viewModelScope.launch { repo.setRhythm(r) }
+    fun setBaseUrl(v: String) {
+        _state.update { it.copy(baseUrl = v) }
+        viewModelScope.launch { repo.setBaseUrl(v) }
     }
-
-    fun setApiKey(v: String) { _state.value = _state.value.copy(apiKey = v); viewModelScope.launch { repo.setApiKey(v) } }
-    fun setBaseUrl(v: String) { _state.value = _state.value.copy(baseUrl = v); viewModelScope.launch { repo.setBaseUrl(v) } }
-    fun setModel(v: String) { _state.value = _state.value.copy(model = v); viewModelScope.launch { repo.setModel(v) } }
+    fun setModel(v: String) {
+        _state.update { it.copy(model = v) }
+        viewModelScope.launch { repo.setModel(v) }
+    }
     fun setTheme(t: SettingsRepository.Theme) { viewModelScope.launch { repo.setTheme(t) } }
     fun setCalendarSync(on: Boolean) { viewModelScope.launch { repo.setCalendarSync(on) } }
+
+    fun setWorkStart(hour: Int) {
+        val current = _state.value.rhythm
+        val newStart = hour.coerceIn(0, current.workEnd - 1)
+        viewModelScope.launch { repo.setRhythm(current.copy(workStart = newStart)) }
+    }
+    fun setWorkEnd(hour: Int) {
+        val current = _state.value.rhythm
+        val newEnd = hour.coerceIn(current.workStart + 1, 24)
+        viewModelScope.launch { repo.setRhythm(current.copy(workEnd = newEnd)) }
+    }
 }

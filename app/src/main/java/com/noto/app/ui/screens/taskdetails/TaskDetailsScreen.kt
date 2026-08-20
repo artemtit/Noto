@@ -2,12 +2,16 @@ package com.noto.app.ui.screens.taskdetails
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -126,6 +130,16 @@ fun TaskDetailsScreen(
                 Text("Reminder", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                 Switch(checked = task.reminderEnabled, onCheckedChange = vm::onReminder)
             }
+
+            ChecklistSection(
+                items = state.checklist,
+                pending = state.pendingChecklist,
+                onAdd = vm::addChecklistItem,
+                onToggle = vm::toggleChecklistItem,
+                onEdit = vm::editChecklistItem,
+                onDelete = vm::deleteChecklistItem,
+                onRemovePending = vm::removePendingChecklist,
+            )
         }
 
         state.conflict?.let { conflict ->
@@ -189,6 +203,109 @@ fun TaskDetailsScreen(
                     TextButton(onClick = vm::dismissReschedule) { Text(stringResource(R.string.cancel)) }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun ChecklistSection(
+    items: List<com.noto.app.domain.model.ChecklistItem>,
+    pending: List<String>,
+    onAdd: (String) -> Unit,
+    onToggle: (com.noto.app.domain.model.ChecklistItem) -> Unit,
+    onEdit: (com.noto.app.domain.model.ChecklistItem, String) -> Unit,
+    onDelete: (com.noto.app.domain.model.ChecklistItem) -> Unit,
+    onRemovePending: (Int) -> Unit,
+) {
+    val ru = java.util.Locale.getDefault().language == "ru"
+    val done = items.count { it.done }
+    val total = items.size + pending.size
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (ru) "Чек-лист" else "Checklist",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            if (total > 0) {
+                Text(
+                    "$done / $total",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        items.forEach { item ->
+            ChecklistRow(
+                text = item.text,
+                done = item.done,
+                onToggle = { onToggle(item) },
+                onTextChange = { onEdit(item, it) },
+                onDelete = { onDelete(item) },
+            )
+        }
+        pending.forEachIndexed { index, text ->
+            ChecklistRow(
+                text = text,
+                done = false,
+                onToggle = { /* saved-only */ },
+                onTextChange = { /* saved-only */ },
+                onDelete = { onRemovePending(index) },
+                editable = false,
+            )
+        }
+        var draft by remember { mutableStateOf("") }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                placeholder = { Text(if (ru) "Новый пункт…" else "New item…") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    if (draft.isNotBlank()) { onAdd(draft); draft = "" }
+                }),
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = {
+                    if (draft.isNotBlank()) { onAdd(draft); draft = "" }
+                },
+                enabled = draft.isNotBlank(),
+            ) { Icon(Icons.Rounded.Add, contentDescription = null) }
+        }
+    }
+}
+
+@Composable
+private fun ChecklistRow(
+    text: String,
+    done: Boolean,
+    onToggle: () -> Unit,
+    onTextChange: (String) -> Unit,
+    onDelete: () -> Unit,
+    editable: Boolean = true,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = done, onCheckedChange = { onToggle() })
+        if (editable) {
+            var localText by remember(text) { mutableStateOf(text) }
+            OutlinedTextField(
+                value = localText,
+                onValueChange = { localText = it },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    if (localText != text) onTextChange(localText)
+                }),
+                modifier = Modifier.weight(1f),
+            )
+        } else {
+            Text(text, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        }
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Rounded.DeleteOutline, contentDescription = null)
         }
     }
 }

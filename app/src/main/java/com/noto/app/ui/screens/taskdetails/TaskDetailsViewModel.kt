@@ -5,16 +5,20 @@ import androidx.lifecycle.viewModelScope
 import com.noto.app.ai.SlotSuggester
 import com.noto.app.calendar.CalendarSyncService
 import com.noto.app.data.prefs.SettingsRepository
+import com.noto.app.data.repo.ChecklistRepository
 import com.noto.app.data.repo.ProjectRepository
 import com.noto.app.data.repo.TaskRepository
+import com.noto.app.domain.model.ChecklistItem
 import com.noto.app.domain.model.Priority
 import com.noto.app.domain.model.Project
 import com.noto.app.domain.model.Recurrence
 import com.noto.app.domain.model.Task
 import com.noto.app.notifications.NotoNotificationScheduler
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
@@ -28,6 +32,9 @@ data class TaskDetailsState(
     val loading: Boolean = true,
     val task: Task? = null,
     val projects: List<Project> = emptyList(),
+    val checklist: List<ChecklistItem> = emptyList(),
+    /** Pending items for a not-yet-saved task; persisted on Save. */
+    val pendingChecklist: List<String> = emptyList(),
     val finished: Boolean = false,
     val conflict: ConflictPrompt? = null,
     val rescheduleOptions: List<LocalTime> = emptyList(),
@@ -37,6 +44,7 @@ data class TaskDetailsState(
 class TaskDetailsViewModel(
     private val tasks: TaskRepository,
     private val projects: ProjectRepository,
+    private val checklists: ChecklistRepository,
     private val scheduler: NotoNotificationScheduler,
     private val calendarSync: CalendarSyncService,
     private val settings: SettingsRepository,
@@ -46,11 +54,23 @@ class TaskDetailsViewModel(
     private val _state = MutableStateFlow(TaskDetailsState())
     val state: StateFlow<TaskDetailsState> = _state.asStateFlow()
 
+    private var checklistJob: Job? = null
+
     init {
         viewModelScope.launch {
             val task = if (taskId > 0) tasks.getById(taskId) else Task(title = "")
             val projs = projects.getAll()
-            _state.value = TaskDetailsState(loading = false, task = task, projects = projs)
+            _state.update { it.copy(loading = false, task = task, projects = projs) }
+            if (taskId > 0) startObservingChecklist(taskId)
+        }
+    }
+
+    private fun startObservingChecklist(id: Long) {
+        checklistJob?.cancel()
+        checklistJob = viewModelScope.launch {
+            checklists.observe(id).collect { list ->
+                _state.update { it.copy(checklist = list) }
+            }
         }
     }
 
@@ -66,8 +86,41 @@ class TaskDetailsViewModel(
     fun onRecurrence(r: Recurrence) = update { it.copy(recurrence = r) }
 
     private fun update(block: (Task) -> Task) {
+        _state.update { s ->
+            val current = s.task ?: return@update s
+            s.copy(task = block(current))
+        }
+    }
+
+    // Checklist ops
+    fun addChecklistItem(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
         val current = _state.value.task ?: return
-        _state.value = _state.value.copy(task = block(current))
+        if (current.id == 0L) {
+            _state.update { it.copy(pendingChecklist = it.pendingChecklist + trimmed) }
+        } else {
+            viewModelScope.launch { checklists.add(current.id, trimmed) }
+        }
+    }
+
+    fun removePendingChecklist(index: Int) {
+        _state.update { s ->
+            if (index !in s.pendingChecklist.indices) s
+            else s.copy(pendingChecklist = s.pendingChecklist.toMutableList().apply { removeAt(index) })
+        }
+    }
+
+    fun toggleChecklistItem(item: ChecklistItem) {
+        viewModelScope.launch { checklists.toggle(item) }
+    }
+
+    fun editChecklistItem(item: ChecklistItem, text: String) {
+        viewModelScope.launch { checklists.updateText(item, text) }
+    }
+
+    fun deleteChecklistItem(item: ChecklistItem) {
+        viewModelScope.launch { checklists.delete(item.id) }
     }
 
     /** Called by Save button. If task has date+time, check overlaps; else save straight. */
@@ -82,7 +135,7 @@ class TaskDetailsViewModel(
                 val conflict = SlotSuggester.findConflict(time, t.effectiveDurationMinutes, others)
                 if (conflict != null) {
                     val alts = shiftAlternatives(time, t.effectiveDurationMinutes, others)
-                    _state.value = _state.value.copy(conflict = ConflictPrompt(conflict, alts))
+                    _state.update { it.copy(conflict = ConflictPrompt(conflict, alts)) }
                     return@launch
                 }
             }
@@ -90,12 +143,12 @@ class TaskDetailsViewModel(
         }
     }
 
-    fun dismissConflict() { _state.value = _state.value.copy(conflict = null) }
+    fun dismissConflict() { _state.update { it.copy(conflict = null) } }
 
     /** Ignore conflict, save as-is. */
     fun saveDespiteConflict() {
         val t = _state.value.task ?: return
-        _state.value = _state.value.copy(conflict = null)
+        _state.update { it.copy(conflict = null) }
         viewModelScope.launch { persist(t) }
     }
 
@@ -103,7 +156,7 @@ class TaskDetailsViewModel(
     fun applyAlternative(time: LocalTime) {
         val t = _state.value.task ?: return
         val shifted = t.copy(dueTime = time)
-        _state.value = _state.value.copy(task = shifted, conflict = null)
+        _state.update { it.copy(task = shifted, conflict = null) }
         viewModelScope.launch { persist(shifted) }
     }
 
@@ -123,26 +176,33 @@ class TaskDetailsViewModel(
                 rhythm = rhythm,
                 durationMinutes = t.effectiveDurationMinutes,
             )
-            _state.value = _state.value.copy(rescheduleOptions = slots, showReschedule = true)
+            _state.update { it.copy(rescheduleOptions = slots, showReschedule = true) }
         }
     }
 
-    fun dismissReschedule() { _state.value = _state.value.copy(showReschedule = false) }
+    fun dismissReschedule() { _state.update { it.copy(showReschedule = false) } }
 
     fun applyReschedule(time: LocalTime) {
         val t = _state.value.task ?: return
         val today = LocalDate.now()
         val newDate = if ((t.dueDate ?: today).isBefore(today)) today else (t.dueDate ?: today)
         val shifted = t.copy(dueDate = newDate, dueTime = time)
-        _state.value = _state.value.copy(task = shifted, showReschedule = false)
+        _state.update { it.copy(task = shifted, showReschedule = false) }
     }
 
     private suspend fun persist(t: Task) {
-        val saved = if (t.id == 0L) {
+        val wasNew = t.id == 0L
+        val saved = if (wasNew) {
             val id = tasks.insert(t)
             t.copy(id = id)
         } else {
             tasks.update(t); t
+        }
+        // Flush any pending checklist items now that the task has an id.
+        if (wasNew) {
+            _state.value.pendingChecklist.forEach { text ->
+                checklists.add(saved.id, text)
+            }
         }
         val notifId = scheduler.schedule(saved)
         val syncEnabled = settings.isCalendarSyncEnabled() && calendarSync.hasPermission()
@@ -163,7 +223,7 @@ class TaskDetailsViewModel(
         if (finalReminderId != saved.reminderId || newEventId != saved.calendarEventId) {
             tasks.update(saved.copy(reminderId = finalReminderId, calendarEventId = newEventId))
         }
-        _state.value = _state.value.copy(finished = true)
+        _state.update { it.copy(finished = true) }
     }
 
     fun delete() {
@@ -174,7 +234,7 @@ class TaskDetailsViewModel(
                 t.calendarEventId?.let { calendarSync.delete(it) }
                 tasks.delete(t.id)
             }
-            _state.value = _state.value.copy(finished = true)
+            _state.update { it.copy(finished = true) }
         }
     }
 

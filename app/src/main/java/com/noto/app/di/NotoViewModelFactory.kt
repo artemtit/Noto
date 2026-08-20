@@ -42,6 +42,7 @@ class NotoViewModelFactory(
                 TaskDetailsViewModel(
                     container.taskRepository,
                     container.projectRepository,
+                    container.checklistRepository,
                     container.notificationScheduler,
                     container.calendarSyncService,
                     container.settingsRepository,

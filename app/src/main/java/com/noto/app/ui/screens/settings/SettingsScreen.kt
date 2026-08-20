@@ -169,10 +169,10 @@ private fun RhythmRow(workStart: Int, workEnd: Int, onStart: (Int) -> Unit, onEn
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (ru) "С:" else "From:", modifier = Modifier.width(48.dp))
-            HourStepper(hour = workStart, onChange = { onStart(it.coerceAtMost(workEnd - 1)) })
+            HourStepper(hour = workStart, onChange = onStart)
             Spacer(Modifier.width(24.dp))
             Text(if (ru) "До:" else "To:", modifier = Modifier.width(48.dp))
-            HourStepper(hour = workEnd, onChange = { onEnd(it.coerceAtLeast(workStart + 1)) })
+            HourStepper(hour = workEnd, onChange = onEnd)
         }
     }
 }

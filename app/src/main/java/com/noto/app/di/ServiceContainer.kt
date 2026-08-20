@@ -6,6 +6,7 @@ import com.noto.app.ai.TaskParser
 import com.noto.app.calendar.CalendarSyncService
 import com.noto.app.data.db.NotoDatabase
 import com.noto.app.data.prefs.SettingsRepository
+import com.noto.app.data.repo.ChecklistRepository
 import com.noto.app.data.repo.ProjectRepository
 import com.noto.app.data.repo.TaskRepository
 import com.noto.app.notifications.NotoNotificationScheduler
@@ -20,6 +21,7 @@ class ServiceContainer(context: Context) {
     val settingsRepository by lazy { SettingsRepository(appContext) }
     val taskRepository by lazy { TaskRepository(database.taskDao()) }
     val projectRepository by lazy { ProjectRepository(database.projectDao()) }
+    val checklistRepository by lazy { ChecklistRepository(database.checklistDao()) }
 
     val notificationScheduler by lazy { NotoNotificationScheduler(appContext) }
     val calendarSyncService by lazy { CalendarSyncService(appContext) }

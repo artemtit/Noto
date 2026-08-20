@@ -17,14 +17,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
+/**
+ * Long-form voice capture that keeps the microphone open until [finishListening] is called.
+ *
+ * Android's [SpeechRecognizer] insists on ending a session on silence (the timeout hints are only
+ * respected sporadically). We work around that by keeping a rolling transcript in [accumulated]
+ * and transparently restarting the recognizer on every terminal event (Final / NO_MATCH /
+ * SPEECH_TIMEOUT) until the caller explicitly asks to stop.
+ */
 class AndroidSpeechRecognizerService(private val context: Context) : SpeechToTextService {
 
     @Volatile private var current: SpeechRecognizer? = null
+    @Volatile private var stopRequested: Boolean = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun isAvailable(): Boolean = SpeechRecognizer.isRecognitionAvailable(context)
 
     override fun finishListening() {
+        stopRequested = true
         val r = current ?: return
         mainHandler.post {
             try { r.stopListening() } catch (_: Throwable) { /* no-op */ }
@@ -32,49 +42,103 @@ class AndroidSpeechRecognizerService(private val context: Context) : SpeechToTex
     }
 
     override fun listen(languageTag: String?): Flow<SpeechEvent> = callbackFlow {
-        val recognizer: SpeechRecognizer = withContext(Dispatchers.Main) {
-            SpeechRecognizer.createSpeechRecognizer(context)
+        stopRequested = false
+        val lang = languageTag ?: Locale.getDefault().toLanguageTag()
+
+        // Accumulated finalized fragments. Latest partial is added on top before emitting.
+        val accumulated = StringBuilder()
+
+        // Fatal errors that should surface to the user and close the flow.
+        val fatalErrors = setOf(
+            SpeechRecognizer.ERROR_AUDIO,
+            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS,
+            SpeechRecognizer.ERROR_CLIENT,
+        )
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
         }
-        current = recognizer
+
+        fun combined(partial: String = ""): String {
+            val base = accumulated.toString().trim()
+            val extra = partial.trim()
+            return when {
+                base.isEmpty() -> extra
+                extra.isEmpty() -> base
+                else -> "$base $extra"
+            }
+        }
+
+        // Restart with a small delay — some devices report BUSY otherwise.
+        fun scheduleRestart() {
+            if (stopRequested) return
+            mainHandler.postDelayed({
+                if (stopRequested) return@postDelayed
+                val r = current ?: return@postDelayed
+                try { r.startListening(intent) } catch (_: Throwable) { /* no-op */ }
+            }, 250)
+        }
 
         val listener = object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) { trySend(SpeechEvent.ReadyForSpeech) }
             override fun onBeginningOfSpeech() { trySend(SpeechEvent.BeginningOfSpeech) }
             override fun onRmsChanged(rmsdB: Float) { trySend(SpeechEvent.Rms(rmsdB)) }
             override fun onBufferReceived(buffer: ByteArray?) { /* no-op */ }
-            override fun onEndOfSpeech() { /* wait for results */ }
+            override fun onEndOfSpeech() { /* wait for onResults */ }
+
             override fun onError(error: Int) {
-                trySend(SpeechEvent.Error(error, errorMessage(error)))
-                close()
+                if (error in fatalErrors) {
+                    trySend(SpeechEvent.Error(error, errorMessage(error)))
+                    close()
+                    return
+                }
+                // NO_MATCH / SPEECH_TIMEOUT / NETWORK / BUSY / SERVER — treat as silence, restart.
+                if (stopRequested) {
+                    trySend(SpeechEvent.Final(combined()))
+                    close()
+                } else {
+                    scheduleRestart()
+                }
             }
+
             override fun onResults(results: Bundle?) {
-                val list = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val text = list?.firstOrNull().orEmpty()
-                if (text.isBlank()) trySend(SpeechEvent.Error(-1, "empty"))
-                else trySend(SpeechEvent.Final(text))
-                close()
+                val text = results
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()
+                    .orEmpty()
+                    .trim()
+                if (text.isNotEmpty()) {
+                    if (accumulated.isNotEmpty()) accumulated.append(' ')
+                    accumulated.append(text)
+                    trySend(SpeechEvent.Partial(combined()))
+                }
+                if (stopRequested) {
+                    trySend(SpeechEvent.Final(combined()))
+                    close()
+                } else {
+                    scheduleRestart()
+                }
             }
+
             override fun onPartialResults(partial: Bundle?) {
-                val list = partial?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val text = list?.firstOrNull().orEmpty()
-                if (text.isNotBlank()) trySend(SpeechEvent.Partial(text))
+                val text = partial
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()
+                    .orEmpty()
+                if (text.isNotBlank()) trySend(SpeechEvent.Partial(combined(text)))
             }
+
             override fun onEvent(eventType: Int, params: Bundle?) { /* no-op */ }
         }
 
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE,
-                languageTag ?: Locale.getDefault().toLanguageTag()
-            )
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 60_000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 60_000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 120_000L)
+        val recognizer: SpeechRecognizer = withContext(Dispatchers.Main) {
+            SpeechRecognizer.createSpeechRecognizer(context)
         }
+        current = recognizer
 
         launch(Dispatchers.Main) {
             recognizer.setRecognitionListener(listener)
@@ -82,6 +146,8 @@ class AndroidSpeechRecognizerService(private val context: Context) : SpeechToTex
         }
 
         awaitClose {
+            stopRequested = true
+            mainHandler.removeCallbacksAndMessages(null)
             try { recognizer.stopListening() } catch (_: Throwable) { /* no-op */ }
             try { recognizer.destroy() } catch (_: Throwable) { /* no-op */ }
             if (current === recognizer) current = null

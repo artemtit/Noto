@@ -6,17 +6,19 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.noto.app.data.entity.ChecklistItemEntity
 import com.noto.app.data.entity.ProjectEntity
 import com.noto.app.data.entity.TaskEntity
 
 @Database(
-    entities = [TaskEntity::class, ProjectEntity::class],
-    version = 5,
+    entities = [TaskEntity::class, ProjectEntity::class, ChecklistItemEntity::class],
+    version = 6,
     exportSchema = false,
 )
 abstract class NotoDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun projectDao(): ProjectDao
+    abstract fun checklistDao(): ChecklistDao
 
     companion object {
         @Volatile
@@ -46,6 +48,26 @@ abstract class NotoDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `checklist_items` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `taskId` INTEGER NOT NULL,
+                        `position` INTEGER NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `done` INTEGER NOT NULL,
+                        FOREIGN KEY(`taskId`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_checklist_items_taskId` ON `checklist_items` (`taskId`)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): NotoDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: build(context).also { INSTANCE = it }
@@ -58,7 +80,13 @@ abstract class NotoDatabase : RoomDatabase() {
                 "noto.db"
             )
                 .addCallback(SeedCallback())
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                )
                 .build()
     }
 
