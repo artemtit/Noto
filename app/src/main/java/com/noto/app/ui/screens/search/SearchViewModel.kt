@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.noto.app.data.repo.ChecklistRepository
 import com.noto.app.data.repo.ProjectRepository
 import com.noto.app.data.repo.TaskRepository
+import com.noto.app.domain.model.ChecklistItem
 import com.noto.app.domain.model.ChecklistProgress
 import com.noto.app.domain.model.Project
 import com.noto.app.domain.model.Task
@@ -26,6 +27,7 @@ data class SearchUiState(
     val results: List<Task> = emptyList(),
     val projectsById: Map<Long, Project> = emptyMap(),
     val progressById: Map<Long, ChecklistProgress> = emptyMap(),
+    val itemsByTask: Map<Long, List<ChecklistItem>> = emptyMap(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
@@ -45,16 +47,27 @@ class SearchViewModel(
         },
         projects.observeAll(),
         checklists.observeAllProgress(),
-    ) { query, list, projs, progress ->
+        checklists.observeAllItems(),
+    ) { values ->
+        @Suppress("UNCHECKED_CAST") val query = values[0] as String
+        @Suppress("UNCHECKED_CAST") val list = values[1] as List<Task>
+        @Suppress("UNCHECKED_CAST") val projs = values[2] as List<Project>
+        @Suppress("UNCHECKED_CAST") val progress = values[3] as Map<Long, ChecklistProgress>
+        @Suppress("UNCHECKED_CAST") val items = values[4] as Map<Long, List<ChecklistItem>>
         SearchUiState(
             query = query,
             results = list,
             projectsById = projs.associateBy { it.id },
             progressById = progress,
+            itemsByTask = items,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SearchUiState())
 
     fun setQuery(s: String) { q.value = s }
+
+    fun toggleChecklistItem(item: ChecklistItem) {
+        viewModelScope.launch { checklists.toggle(item) }
+    }
 
     fun toggle(task: Task) {
         viewModelScope.launch {

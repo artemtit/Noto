@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.noto.app.data.repo.ChecklistRepository
 import com.noto.app.data.repo.ProjectRepository
 import com.noto.app.data.repo.TaskRepository
+import com.noto.app.domain.model.ChecklistItem
 import com.noto.app.domain.model.ChecklistProgress
 import com.noto.app.domain.model.Project
 import com.noto.app.domain.model.Task
@@ -19,6 +20,7 @@ data class InboxUiState(
     val tasks: List<Task> = emptyList(),
     val projectsById: Map<Long, Project> = emptyMap(),
     val progressById: Map<Long, ChecklistProgress> = emptyMap(),
+    val itemsByTask: Map<Long, List<ChecklistItem>> = emptyMap(),
 )
 
 class InboxViewModel(
@@ -33,9 +35,14 @@ class InboxViewModel(
             tasks.observeInbox(),
             projects.observeAll(),
             checklists.observeAllProgress(),
-        ) { list, projs, progress ->
-            InboxUiState(list, projs.associateBy { it.id }, progress)
+            checklists.observeAllItems(),
+        ) { list, projs, progress, items ->
+            InboxUiState(list, projs.associateBy { it.id }, progress, items)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), InboxUiState())
+
+    fun toggleChecklistItem(item: ChecklistItem) {
+        viewModelScope.launch { checklists.toggle(item) }
+    }
 
     fun toggle(task: Task) {
         viewModelScope.launch {

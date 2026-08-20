@@ -10,7 +10,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +42,8 @@ fun TaskRow(
     task: Task,
     projectName: String? = null,
     progress: ChecklistProgress? = null,
+    expanded: Boolean = false,
+    onExpandToggle: (() -> Unit)? = null,
     onToggle: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -121,6 +126,15 @@ fun TaskRow(
                             )
                         }
                     }
+                }
+            }
+            if (onExpandToggle != null && progress != null && progress.total > 0) {
+                IconButton(onClick = onExpandToggle) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = null,
+                        tint = cs.onSurfaceVariant,
+                    )
                 }
             }
         }

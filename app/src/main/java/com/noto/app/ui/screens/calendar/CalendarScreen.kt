@@ -33,7 +33,7 @@ import com.noto.app.di.ServiceContainer
 import com.noto.app.domain.model.Priority
 import com.noto.app.domain.model.Task
 import com.noto.app.ui.components.EmptyState
-import com.noto.app.ui.components.SwipeableTaskRow
+import com.noto.app.ui.components.TaskListItem
 import com.noto.app.ui.theme.PriorityHigh
 import com.noto.app.ui.theme.PriorityLow
 import com.noto.app.ui.theme.PriorityMedium
@@ -72,9 +72,11 @@ fun CalendarScreen(
             tasks = state.selectedTasks,
             projectNames = { id -> state.projectsById[id]?.name },
             progressById = state.progressById,
+            itemsByTask = state.itemsByTask,
             onToggle = vm::toggle,
             onOpen = onOpenTask,
             onDelete = vm::delete,
+            onToggleItem = vm::toggleChecklistItem,
         )
     }
 }
@@ -251,9 +253,11 @@ private fun DaySection(
     tasks: List<Task>,
     projectNames: (Long) -> String?,
     progressById: Map<Long, com.noto.app.domain.model.ChecklistProgress>,
+    itemsByTask: Map<Long, List<com.noto.app.domain.model.ChecklistItem>>,
     onToggle: (Task) -> Unit,
     onOpen: (Long) -> Unit,
     onDelete: (Task) -> Unit,
+    onToggleItem: (com.noto.app.domain.model.ChecklistItem) -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
     val locale = Locale.getDefault()
@@ -291,13 +295,15 @@ private fun DaySection(
                 modifier = Modifier.weight(1f),
             ) {
                 items(tasks, key = { it.id }) { t ->
-                    SwipeableTaskRow(
+                    TaskListItem(
                         task = t,
                         projectName = t.projectId?.let(projectNames),
                         progress = progressById[t.id],
-                        onToggle = { onToggle(t) },
-                        onClick = { onOpen(t.id) },
+                        items = itemsByTask[t.id].orEmpty(),
+                        onToggleTask = { onToggle(t) },
+                        onOpen = { onOpen(t.id) },
                         onDelete = { onDelete(t) },
+                        onToggleItem = onToggleItem,
                     )
                 }
                 item { Spacer(Modifier.height(24.dp)) }

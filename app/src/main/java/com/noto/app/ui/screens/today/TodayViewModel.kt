@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.noto.app.data.repo.ChecklistRepository
 import com.noto.app.data.repo.ProjectRepository
 import com.noto.app.data.repo.TaskRepository
+import com.noto.app.domain.model.ChecklistItem
 import com.noto.app.domain.model.ChecklistProgress
 import com.noto.app.domain.model.Project
 import com.noto.app.domain.model.Task
@@ -23,6 +24,7 @@ data class TodayUiState(
     val completed: List<Task> = emptyList(),
     val projectsById: Map<Long, Project> = emptyMap(),
     val progressById: Map<Long, ChecklistProgress> = emptyMap(),
+    val itemsByTask: Map<Long, List<ChecklistItem>> = emptyMap(),
 ) {
     val total: Int get() = pending.size + completed.size
 }
@@ -41,15 +43,21 @@ class TodayViewModel(
             tasks.observeByDate(today.value.toString()),
             projects.observeAll(),
             checklists.observeAllProgress(),
-        ) { list, projs, progress ->
+            checklists.observeAllItems(),
+        ) { list, projs, progress, items ->
             TodayUiState(
                 date = today.value,
                 pending = list.filter { !it.completed },
                 completed = list.filter { it.completed },
                 projectsById = projs.associateBy { it.id },
                 progressById = progress,
+                itemsByTask = items,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayUiState())
+
+    fun toggleChecklistItem(item: ChecklistItem) {
+        viewModelScope.launch { checklists.toggle(item) }
+    }
 
     fun toggle(task: Task) {
         viewModelScope.launch {

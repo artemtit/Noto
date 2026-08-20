@@ -14,7 +14,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noto.app.di.NotoViewModelFactory
 import com.noto.app.di.ServiceContainer
-import com.noto.app.ui.components.SwipeableTaskRow
+import com.noto.app.ui.components.TaskListItem
 
 @Composable
 fun ProjectDetailScreen(
@@ -46,13 +46,15 @@ fun ProjectDetailScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(state.tasks, key = { it.id }) { task ->
-                SwipeableTaskRow(
+                TaskListItem(
                     task = task,
                     projectName = null,
                     progress = state.progressById[task.id],
-                    onToggle = { vm.toggle(task) },
-                    onClick = { onOpenTask(task.id) },
+                    items = state.itemsByTask[task.id].orEmpty(),
+                    onToggleTask = { vm.toggle(task) },
+                    onOpen = { onOpenTask(task.id) },
                     onDelete = { vm.delete(task) },
+                    onToggleItem = vm::toggleChecklistItem,
                 )
             }
         }

@@ -24,7 +24,7 @@ import com.noto.app.R
 import com.noto.app.di.NotoViewModelFactory
 import com.noto.app.di.ServiceContainer
 import com.noto.app.ui.components.EmptyState
-import com.noto.app.ui.components.SwipeableTaskRow
+import com.noto.app.ui.components.TaskListItem
 
 @Composable
 fun SearchScreen(
@@ -65,13 +65,15 @@ fun SearchScreen(
                     modifier = Modifier.weight(1f),
                 ) {
                     items(state.results, key = { it.id }) { t ->
-                        SwipeableTaskRow(
+                        TaskListItem(
                             task = t,
                             projectName = t.projectId?.let { state.projectsById[it]?.name },
                             progress = state.progressById[t.id],
-                            onToggle = { vm.toggle(t) },
-                            onClick = { onOpenTask(t.id) },
+                            items = state.itemsByTask[t.id].orEmpty(),
+                            onToggleTask = { vm.toggle(t) },
+                            onOpen = { onOpenTask(t.id) },
                             onDelete = { vm.delete(t) },
+                            onToggleItem = vm::toggleChecklistItem,
                         )
                     }
                 }

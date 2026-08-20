@@ -15,6 +15,9 @@ class ChecklistRepository(private val dao: ChecklistDao) {
     fun observeAllProgress(): Flow<Map<Long, ChecklistProgress>> =
         dao.observeAllProgress().map { list -> list.associateBy { it.taskId } }
 
+    fun observeAllItems(): Flow<Map<Long, List<ChecklistItem>>> =
+        dao.observeAll().map { list -> list.map { it.toModel() }.groupBy { it.taskId } }
+
     suspend fun add(taskId: Long, text: String): Long {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return 0L

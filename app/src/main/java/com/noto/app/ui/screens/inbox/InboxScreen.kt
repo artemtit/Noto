@@ -18,7 +18,7 @@ import com.noto.app.di.NotoViewModelFactory
 import com.noto.app.di.ServiceContainer
 import com.noto.app.ui.components.EmptyState
 import com.noto.app.ui.components.MicButton
-import com.noto.app.ui.components.SwipeableTaskRow
+import com.noto.app.ui.components.TaskListItem
 
 @Composable
 fun InboxScreen(
@@ -49,13 +49,15 @@ fun InboxScreen(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                 ) {
                     items(state.tasks, key = { it.id }) { task ->
-                        SwipeableTaskRow(
+                        TaskListItem(
                             task = task,
                             projectName = state.projectsById[task.projectId ?: -1]?.name,
                             progress = state.progressById[task.id],
-                            onToggle = { vm.toggle(task) },
-                            onClick = { onOpenTask(task.id) },
+                            items = state.itemsByTask[task.id].orEmpty(),
+                            onToggleTask = { vm.toggle(task) },
+                            onOpen = { onOpenTask(task.id) },
                             onDelete = { vm.delete(task) },
+                            onToggleItem = vm::toggleChecklistItem,
                         )
                     }
                     item { Spacer(Modifier.height(120.dp)) }

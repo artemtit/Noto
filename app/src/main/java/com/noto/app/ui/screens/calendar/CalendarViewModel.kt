@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.noto.app.data.repo.ChecklistRepository
 import com.noto.app.data.repo.ProjectRepository
 import com.noto.app.data.repo.TaskRepository
+import com.noto.app.domain.model.ChecklistItem
 import com.noto.app.domain.model.ChecklistProgress
 import com.noto.app.domain.model.Project
 import com.noto.app.domain.model.Task
@@ -26,6 +27,7 @@ data class CalendarUiState(
     val tasksByDate: Map<LocalDate, List<Task>> = emptyMap(),
     val projectsById: Map<Long, Project> = emptyMap(),
     val progressById: Map<Long, ChecklistProgress> = emptyMap(),
+    val itemsByTask: Map<Long, List<ChecklistItem>> = emptyMap(),
 ) {
     val selectedTasks: List<Task> get() = tasksByDate[selectedDate].orEmpty()
 }
@@ -49,6 +51,7 @@ class CalendarViewModel(
         },
         projects.observeAll(),
         checklists.observeAllProgress(),
+        checklists.observeAllItems(),
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val ym = values[0] as YearMonth
@@ -60,6 +63,8 @@ class CalendarViewModel(
         val projs = values[3] as List<Project>
         @Suppress("UNCHECKED_CAST")
         val progress = values[4] as Map<Long, ChecklistProgress>
+        @Suppress("UNCHECKED_CAST")
+        val items = values[5] as Map<Long, List<ChecklistItem>>
         val map = HashMap<LocalDate, MutableList<Task>>()
         list.forEach { t ->
             val start: LocalDate? = t.startDate ?: t.dueDate
@@ -78,8 +83,13 @@ class CalendarViewModel(
             tasksByDate = map,
             projectsById = projs.associateBy { it.id },
             progressById = progress,
+            itemsByTask = items,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CalendarUiState())
+
+    fun toggleChecklistItem(item: ChecklistItem) {
+        viewModelScope.launch { checklists.toggle(item) }
+    }
 
     fun setMonth(ym: YearMonth) { month.value = ym }
     fun nextMonth() { month.value = month.value.plusMonths(1) }

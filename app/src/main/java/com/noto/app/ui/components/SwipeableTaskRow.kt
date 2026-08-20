@@ -33,6 +33,8 @@ fun SwipeableTaskRow(
     task: Task,
     projectName: String?,
     progress: ChecklistProgress? = null,
+    expanded: Boolean = false,
+    onExpandToggle: (() -> Unit)? = null,
     onToggle: () -> Unit,
     onClick: () -> Unit,
     onDelete: () -> Unit,
@@ -105,6 +107,8 @@ fun SwipeableTaskRow(
             task = task,
             projectName = projectName,
             progress = progress,
+            expanded = expanded,
+            onExpandToggle = onExpandToggle,
             onToggle = onToggle,
             onClick = onClick,
         )

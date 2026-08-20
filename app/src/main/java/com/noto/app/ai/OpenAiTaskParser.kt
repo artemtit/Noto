@@ -204,11 +204,19 @@ DURATION:
 - estimatedMinutes = your best guess of how long the task takes (haircut 60, quick call 15, dentist 45, workout 60, meeting 30, buy groceries 30, homework 45). Prefer null only when totally unclear.
 
 CHECKLIST:
-- If the user dictates a task with sub-steps ("чек-лист", "по списку", "с пунктами", "нужно сделать: X, Y, Z", "checklist", enumerations like "во-первых…, во-вторых…", or explicit lists of items to buy / prepare / bring), fill `checklist` with those items.
+- If the user names ONE main task and lists sub-steps under it ("чек-лист", "по списку", "с пунктами", "нужно сделать: X, Y, Z", "checklist", enumerations like "во-первых…, во-вторых…", or explicit lists of items to buy / prepare / bring), produce ONE task object with the parent action as `title` and the sub-steps in `checklist`. Do NOT create a separate task per sub-step.
+- If the user actually lists several independent tasks (each a full action of its own, unrelated to a common parent), then create multiple task objects and leave `checklist` empty.
 - Each checklist item is a short imperative phrase (2-6 words), one action. Strip filler. Preserve the input language.
-- Do NOT invent items the user didn't mention. Do NOT put the whole task title into the checklist.
-- The task's own `title` remains the parent action; checklist holds only the sub-steps.
+- Do NOT invent items the user didn't mention. Do NOT put the whole title into the checklist.
 - If there are no explicit sub-steps, `checklist` = [].
+
+EXAMPLES:
+- Input: "Постричься чек-лист помыть голову взять деньги позвонить парикмахеру"
+  → {"tasks":[{"title":"Постричься","checklist":["Помыть голову","Взять деньги","Позвонить парикмахеру"],...}]}
+- Input: "Купить продукты нужно молоко хлеб сыр"
+  → {"tasks":[{"title":"Купить продукты","checklist":["Молоко","Хлеб","Сыр"],...}]}
+- Input: "Позвонить маме и сходить в спортзал"
+  → {"tasks":[{"title":"Позвонить маме","checklist":[],...},{"title":"Сходить в спортзал","checklist":[],...}]}
 
 SLOT SUGGESTIONS:
 - If the user asked YOU to pick a time ("подбери время", "выбери время", "во сколько лучше", "когда сделать", "pick a time", "what time works") AND dueTime is null → return 3 concrete suggestedSlots for the given day.

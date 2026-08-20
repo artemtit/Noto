@@ -33,8 +33,7 @@ import com.noto.app.di.ServiceContainer
 import com.noto.app.ui.components.EmptyState
 import com.noto.app.ui.components.MicButton
 import com.noto.app.ui.components.SectionHeader
-import com.noto.app.ui.components.SwipeableTaskRow
-import com.noto.app.ui.components.TaskRow
+import com.noto.app.ui.components.TaskListItem
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -68,13 +67,15 @@ fun TodayScreen(
                     if (state.pending.isNotEmpty()) {
                         item { SectionHeader(stringResource(R.string.section_pending)) }
                         items(state.pending, key = { it.id }) { task ->
-                            SwipeableTaskRow(
+                            TaskListItem(
                                 task = task,
                                 projectName = state.projectsById[task.projectId ?: -1]?.name,
                                 progress = state.progressById[task.id],
-                                onToggle = { vm.toggle(task) },
-                                onClick = { onOpenTask(task.id) },
+                                items = state.itemsByTask[task.id].orEmpty(),
+                                onToggleTask = { vm.toggle(task) },
+                                onOpen = { onOpenTask(task.id) },
                                 onDelete = { vm.delete(task) },
+                                onToggleItem = vm::toggleChecklistItem,
                             )
                         }
                     }
@@ -82,13 +83,15 @@ fun TodayScreen(
                         item { Spacer(Modifier.height(10.dp)) }
                         item { SectionHeader(stringResource(R.string.section_completed)) }
                         items(state.completed, key = { it.id }) { task ->
-                            SwipeableTaskRow(
+                            TaskListItem(
                                 task = task,
                                 projectName = state.projectsById[task.projectId ?: -1]?.name,
                                 progress = state.progressById[task.id],
-                                onToggle = { vm.toggle(task) },
-                                onClick = { onOpenTask(task.id) },
+                                items = state.itemsByTask[task.id].orEmpty(),
+                                onToggleTask = { vm.toggle(task) },
+                                onOpen = { onOpenTask(task.id) },
                                 onDelete = { vm.delete(task) },
+                                onToggleItem = vm::toggleChecklistItem,
                             )
                         }
                     }

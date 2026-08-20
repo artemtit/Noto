@@ -15,6 +15,9 @@ interface ChecklistDao {
     @Query("SELECT taskId, COUNT(*) AS total, SUM(done) AS done FROM checklist_items GROUP BY taskId")
     fun observeAllProgress(): Flow<List<ChecklistProgress>>
 
+    @Query("SELECT * FROM checklist_items ORDER BY taskId ASC, position ASC, id ASC")
+    fun observeAll(): Flow<List<ChecklistItemEntity>>
+
 
     @Query("SELECT * FROM checklist_items WHERE taskId = :taskId ORDER BY position ASC, id ASC")
     fun observeByTask(taskId: Long): Flow<List<ChecklistItemEntity>>
