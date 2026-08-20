@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Noto</string>
+
+    <string name="tab_today">Сегодня</string>
+    <string name="tab_calendar">Календарь</string>
+    <string name="tab_inbox">Входящие</string>
+    <string name="tab_projects">Проекты</string>
+    <string name="tab_settings">Настройки</string>
+
+    <string name="quick_add_hint">Быстрая задача…</string>
+    <string name="search_hint">Поиск задач</string>
+    <string name="search_title">Поиск</string>
+    <string name="search_empty">Ничего не найдено</string>
+    <string name="settings_calendar_sync">Синхронизация с календарём</string>
+    <string name="settings_calendar_sync_desc">Задачи с датой попадут в календарь телефона (Google/Samsung/…)</string>
+    <string name="permission_calendar_denied">Нужно разрешение на календарь</string>
+    <string name="settings_notif_permission">Разрешить уведомления</string>
+    <string name="settings_exact_alarms">Точные будильники (настройки системы)</string>
+    <string name="settings_open">Открыть</string>
+
+    <string name="today_title">Сегодня</string>
+    <string name="inbox_title">Входящие</string>
+    <string name="projects_title">Проекты</string>
+    <string name="settings_title">Настройки</string>
+    <string name="review_title">Проверка</string>
+    <string name="voice_title">Голосовой ввод</string>
+    <string name="task_details_title">Задача</string>
+
+    <string name="empty_today">На сегодня ничего. Нажмите микрофон.</string>
+    <string name="empty_inbox">Входящие пусты.</string>
+    <string name="empty_projects">Проектов пока нет.</string>
+
+    <string name="mic_button_cd">Голосовой ввод</string>
+    <string name="start_listening">Нажмите, чтобы говорить</string>
+    <string name="listening">Слушаю…</string>
+    <string name="processing">Обрабатываю…</string>
+    <string name="tap_to_stop">Нажмите, чтобы остановить</string>
+
+    <string name="create_n_tasks">Создать %1$d задач</string>
+    <string name="create_task">Создать задачу</string>
+    <string name="cancel">Отмена</string>
+    <string name="delete">Удалить</string>
+    <string name="save">Сохранить</string>
+    <string name="done">Готово</string>
+
+    <string name="section_pending">Активные</string>
+    <string name="section_completed">Выполненные</string>
+
+    <string name="settings_api">AI-провайдер</string>
+    <string name="settings_api_key">API-ключ</string>
+    <string name="settings_api_url">Базовый URL</string>
+    <string name="settings_model">Модель</string>
+    <string name="settings_notifications">Уведомления</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_speech">Речь</string>
+    <string name="settings_about">О приложении</string>
+    <string name="settings_rhythm">Активные часы</string>
+
+    <string name="theme_system">Как в системе</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+
+    <string name="permission_mic_denied">Нужно разрешение на микрофон</string>
+    <string name="permission_notifications_denied">Нужно разрешение на уведомления</string>
+
+    <string name="notif_channel_reminders">Напоминания</string>
+    <string name="notif_channel_reminders_desc">Напоминания о запланированных задачах</string>
+
+    <string name="error_network">Нет соединения</string>
+    <string name="error_timeout">Превышено время ожидания</string>
+    <string name="error_api">Ошибка AI-сервиса</string>
+    <string name="error_bad_response">AI вернул неверный ответ</string>
+    <string name="error_empty_speech">Ничего не распознано. Попробуйте ещё раз.</string>
+    <string name="error_no_api_key">Добавьте API-ключ в Настройках</string>
+
+    <string name="priority_low">Низкий</string>
+    <string name="priority_medium">Средний</string>
+    <string name="priority_high">Высокий</string>
+
+    <string name="project_personal">Личное</string>
+    <string name="project_work">Работа</string>
+    <string name="project_school">Школа</string>
+    <string name="project_finance">Финансы</string>
+
+    <string name="add_project">Новый проект</string>
+    <string name="project_name">Название проекта</string>
+    <string name="no_project">Без проекта</string>
+</resources>

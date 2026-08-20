@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="noto_accent">#4F46E5</color>
+    <color name="noto_bg">#FAFAFA</color>
+    <color name="noto_bg_dark">#0B0B0F</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+</resources>
