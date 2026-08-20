@@ -9,6 +9,7 @@ import com.noto.app.calendar.CalendarSyncService
 import com.noto.app.core.AppError
 import com.noto.app.core.AppResult
 import com.noto.app.data.prefs.SettingsRepository
+import com.noto.app.data.repo.ChecklistRepository
 import com.noto.app.data.repo.ProjectRepository
 import com.noto.app.data.repo.TaskRepository
 import com.noto.app.domain.model.ParsedTask
@@ -36,6 +37,7 @@ data class ReviewItem(
     val dueTime: LocalTime?,
     val estimatedMinutes: Int?,
     val suggestedSlots: List<LocalTime> = emptyList(),
+    val checklist: List<String> = emptyList(),
     val priority: Priority,
     val projectId: Long?,
     val reminder: Boolean,
@@ -55,6 +57,7 @@ class ReviewViewModel(
     private val parser: TaskParser,
     private val projects: ProjectRepository,
     private val tasks: TaskRepository,
+    private val checklists: ChecklistRepository,
     private val scheduler: NotoNotificationScheduler,
     private val calendarSync: CalendarSyncService,
     private val settings: SettingsRepository,
@@ -120,6 +123,17 @@ class ReviewViewModel(
         it.copy(dueTime = slot, suggestedSlots = emptyList())
     }
 
+    fun addChecklistItem(id: String, text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        updateItem(id) { it.copy(checklist = it.checklist + trimmed) }
+    }
+
+    fun removeChecklistItem(id: String, index: Int) = updateItem(id) {
+        if (index !in it.checklist.indices) it
+        else it.copy(checklist = it.checklist.toMutableList().apply { removeAt(index) })
+    }
+
     fun remove(id: String) {
         _state.value = _state.value.copy(items = _state.value.items.filterNot { it.id == id })
     }
@@ -143,6 +157,7 @@ class ReviewViewModel(
                 )
                 val id = tasks.insert(task)
                 val saved = task.copy(id = id)
+                r.checklist.forEach { text -> checklists.add(id, text) }
                 val notifId = scheduler.schedule(saved)
                 val syncEnabled = settings.isCalendarSyncEnabled()
                 val eventId = if (syncEnabled && calendarSync.hasPermission()) calendarSync.insert(saved) else null
@@ -168,6 +183,7 @@ private fun ParsedTask.toReviewItem(index: Int, projects: List<Project>): Review
         dueTime = dueTime,
         estimatedMinutes = estimatedMinutes,
         suggestedSlots = suggestedSlots,
+        checklist = checklist,
         priority = priority,
         projectId = projId,
         reminder = reminder,

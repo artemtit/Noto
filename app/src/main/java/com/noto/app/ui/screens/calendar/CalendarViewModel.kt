@@ -2,8 +2,10 @@ package com.noto.app.ui.screens.calendar
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.noto.app.data.repo.ChecklistRepository
 import com.noto.app.data.repo.ProjectRepository
 import com.noto.app.data.repo.TaskRepository
+import com.noto.app.domain.model.ChecklistProgress
 import com.noto.app.domain.model.Project
 import com.noto.app.domain.model.Task
 import com.noto.app.notifications.NotoNotificationScheduler
@@ -23,6 +25,7 @@ data class CalendarUiState(
     val selectedDate: LocalDate = LocalDate.now(),
     val tasksByDate: Map<LocalDate, List<Task>> = emptyMap(),
     val projectsById: Map<Long, Project> = emptyMap(),
+    val progressById: Map<Long, ChecklistProgress> = emptyMap(),
 ) {
     val selectedTasks: List<Task> get() = tasksByDate[selectedDate].orEmpty()
 }
@@ -31,6 +34,7 @@ data class CalendarUiState(
 class CalendarViewModel(
     private val tasks: TaskRepository,
     private val projects: ProjectRepository,
+    private val checklists: ChecklistRepository,
     private val scheduler: NotoNotificationScheduler,
 ) : ViewModel() {
 
@@ -44,7 +48,18 @@ class CalendarViewModel(
             tasks.observeByDateRange(ym.atDay(1).toString(), ym.atEndOfMonth().toString())
         },
         projects.observeAll(),
-    ) { ym, sel, list, projs ->
+        checklists.observeAllProgress(),
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val ym = values[0] as YearMonth
+        @Suppress("UNCHECKED_CAST")
+        val sel = values[1] as LocalDate
+        @Suppress("UNCHECKED_CAST")
+        val list = values[2] as List<Task>
+        @Suppress("UNCHECKED_CAST")
+        val projs = values[3] as List<Project>
+        @Suppress("UNCHECKED_CAST")
+        val progress = values[4] as Map<Long, ChecklistProgress>
         val map = HashMap<LocalDate, MutableList<Task>>()
         list.forEach { t ->
             val start: LocalDate? = t.startDate ?: t.dueDate
@@ -62,6 +77,7 @@ class CalendarViewModel(
             selectedDate = sel,
             tasksByDate = map,
             projectsById = projs.associateBy { it.id },
+            progressById = progress,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CalendarUiState())
 

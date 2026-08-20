@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.noto.app.core.DateTimeUtils
+import com.noto.app.domain.model.ChecklistProgress
 import com.noto.app.domain.model.Priority
 import com.noto.app.domain.model.Task
 import com.noto.app.ui.theme.PriorityHigh
@@ -37,6 +38,7 @@ import java.util.Locale
 fun TaskRow(
     task: Task,
     projectName: String? = null,
+    progress: ChecklistProgress? = null,
     onToggle: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -82,7 +84,7 @@ fun TaskRow(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val meta = buildMeta(task)
+                val meta = buildMeta(task, progress)
                 if (meta.isNotBlank() || projectName != null) {
                     Spacer(Modifier.height(3.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -154,7 +156,7 @@ private fun priorityColor(p: Priority): Color = when (p) {
     Priority.LOW -> PriorityLow
 }
 
-private fun buildMeta(task: Task): String {
+private fun buildMeta(task: Task, progress: ChecklistProgress?): String {
     val today = LocalDate.now()
     val parts = mutableListOf<String>()
     if (task.isRange) {
@@ -165,5 +167,6 @@ private fun buildMeta(task: Task): String {
         task.dueDate?.let { parts += DateTimeUtils.formatDateShort(it, today, Locale.getDefault()) }
     }
     task.dueTime?.let { parts += DateTimeUtils.formatTime(it) }
-    return parts.joinToString(" ")
+    if (progress != null && progress.total > 0) parts += "☑ ${progress.done}/${progress.total}"
+    return parts.joinToString(" · ")
 }

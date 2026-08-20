@@ -71,6 +71,7 @@ fun TodayScreen(
                             SwipeableTaskRow(
                                 task = task,
                                 projectName = state.projectsById[task.projectId ?: -1]?.name,
+                                progress = state.progressById[task.id],
                                 onToggle = { vm.toggle(task) },
                                 onClick = { onOpenTask(task.id) },
                                 onDelete = { vm.delete(task) },
@@ -84,6 +85,7 @@ fun TodayScreen(
                             SwipeableTaskRow(
                                 task = task,
                                 projectName = state.projectsById[task.projectId ?: -1]?.name,
+                                progress = state.progressById[task.id],
                                 onToggle = { vm.toggle(task) },
                                 onClick = { onOpenTask(task.id) },
                                 onDelete = { vm.delete(task) },

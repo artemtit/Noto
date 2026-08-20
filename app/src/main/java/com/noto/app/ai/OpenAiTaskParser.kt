@@ -130,6 +130,13 @@ class OpenAiTaskParser(
                 el.jsonArray.mapNotNull { s -> (s as? JsonPrimitive)?.contentOrNull?.let { parseHm(it) } }
             }.getOrNull()
         }.orEmpty()
+        val checklist = o["checklist"]?.let { el ->
+            runCatching {
+                el.jsonArray.mapNotNull { s ->
+                    (s as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                }
+            }.getOrNull()
+        }.orEmpty()
         val priority = Priority.fromString(o.str("priority"))
         val project = o.str("project")?.takeUnless { it.isBlank() }
         val reminder = when (val r = o["reminder"]) {
@@ -144,6 +151,7 @@ class OpenAiTaskParser(
             dueTime = time,
             estimatedMinutes = estMin,
             suggestedSlots = slots,
+            checklist = checklist,
             priority = priority,
             projectName = project,
             reminder = reminder,
@@ -176,7 +184,7 @@ class OpenAiTaskParser(
         return """
 You extract a structured task list from a short user voice note.
 Return STRICT JSON only. No prose. No markdown fences. Shape:
-{"tasks":[{"title":"...","description":null,"startDate":"YYYY-MM-DD" or null,"dueDate":"YYYY-MM-DD" or null,"dueTime":"HH:mm" or null,"estimatedMinutes":<int> or null,"suggestedSlots":["HH:mm",...] or [],"priority":"low"|"medium"|"high","project":"..." or null,"reminder":true|false}]}
+{"tasks":[{"title":"...","description":null,"startDate":"YYYY-MM-DD" or null,"dueDate":"YYYY-MM-DD" or null,"dueTime":"HH:mm" or null,"estimatedMinutes":<int> or null,"suggestedSlots":["HH:mm",...] or [],"checklist":["step 1","step 2",...] or [],"priority":"low"|"medium"|"high","project":"..." or null,"reminder":true|false}]}
 
 Context:
 - Today is $today. Current time is $time. Timezone: $zone. Language: $lang.
@@ -194,6 +202,13 @@ Rules:
 
 DURATION:
 - estimatedMinutes = your best guess of how long the task takes (haircut 60, quick call 15, dentist 45, workout 60, meeting 30, buy groceries 30, homework 45). Prefer null only when totally unclear.
+
+CHECKLIST:
+- If the user dictates a task with sub-steps ("чек-лист", "по списку", "с пунктами", "нужно сделать: X, Y, Z", "checklist", enumerations like "во-первых…, во-вторых…", or explicit lists of items to buy / prepare / bring), fill `checklist` with those items.
+- Each checklist item is a short imperative phrase (2-6 words), one action. Strip filler. Preserve the input language.
+- Do NOT invent items the user didn't mention. Do NOT put the whole task title into the checklist.
+- The task's own `title` remains the parent action; checklist holds only the sub-steps.
+- If there are no explicit sub-steps, `checklist` = [].
 
 SLOT SUGGESTIONS:
 - If the user asked YOU to pick a time ("подбери время", "выбери время", "во сколько лучше", "когда сделать", "pick a time", "what time works") AND dueTime is null → return 3 concrete suggestedSlots for the given day.

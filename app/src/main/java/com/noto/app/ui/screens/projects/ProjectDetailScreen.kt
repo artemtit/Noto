@@ -49,6 +49,7 @@ fun ProjectDetailScreen(
                 SwipeableTaskRow(
                     task = task,
                     projectName = null,
+                    progress = state.progressById[task.id],
                     onToggle = { vm.toggle(task) },
                     onClick = { onOpenTask(task.id) },
                     onDelete = { vm.delete(task) },

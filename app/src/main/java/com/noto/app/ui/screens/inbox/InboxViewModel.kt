@@ -2,8 +2,10 @@ package com.noto.app.ui.screens.inbox
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.noto.app.data.repo.ChecklistRepository
 import com.noto.app.data.repo.ProjectRepository
 import com.noto.app.data.repo.TaskRepository
+import com.noto.app.domain.model.ChecklistProgress
 import com.noto.app.domain.model.Project
 import com.noto.app.domain.model.Task
 import com.noto.app.notifications.NotoNotificationScheduler
@@ -16,17 +18,23 @@ import kotlinx.coroutines.launch
 data class InboxUiState(
     val tasks: List<Task> = emptyList(),
     val projectsById: Map<Long, Project> = emptyMap(),
+    val progressById: Map<Long, ChecklistProgress> = emptyMap(),
 )
 
 class InboxViewModel(
     private val tasks: TaskRepository,
     private val projects: ProjectRepository,
+    private val checklists: ChecklistRepository,
     private val scheduler: NotoNotificationScheduler,
 ) : ViewModel() {
 
     val state: StateFlow<InboxUiState> =
-        combine(tasks.observeInbox(), projects.observeAll()) { list, projs ->
-            InboxUiState(list, projs.associateBy { it.id })
+        combine(
+            tasks.observeInbox(),
+            projects.observeAll(),
+            checklists.observeAllProgress(),
+        ) { list, projs, progress ->
+            InboxUiState(list, projs.associateBy { it.id }, progress)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), InboxUiState())
 
     fun toggle(task: Task) {

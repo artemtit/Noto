@@ -25,16 +25,23 @@ class NotoViewModelFactory(
                 TodayViewModel(
                     container.taskRepository,
                     container.projectRepository,
+                    container.checklistRepository,
                     container.notificationScheduler,
                 ) as T
             modelClass.isAssignableFrom(InboxViewModel::class.java) ->
-                InboxViewModel(container.taskRepository, container.projectRepository, container.notificationScheduler) as T
+                InboxViewModel(
+                    container.taskRepository,
+                    container.projectRepository,
+                    container.checklistRepository,
+                    container.notificationScheduler,
+                ) as T
             modelClass.isAssignableFrom(ProjectsViewModel::class.java) ->
                 ProjectsViewModel(container.projectRepository) as T
             modelClass.isAssignableFrom(ProjectDetailViewModel::class.java) ->
                 ProjectDetailViewModel(
                     container.taskRepository,
                     container.projectRepository,
+                    container.checklistRepository,
                     container.notificationScheduler,
                     (extras["projectId"] as? Long) ?: 0L,
                 ) as T
@@ -55,6 +62,7 @@ class NotoViewModelFactory(
                     container.taskParser,
                     container.projectRepository,
                     container.taskRepository,
+                    container.checklistRepository,
                     container.notificationScheduler,
                     container.calendarSyncService,
                     container.settingsRepository,
@@ -65,12 +73,14 @@ class NotoViewModelFactory(
                 CalendarViewModel(
                     container.taskRepository,
                     container.projectRepository,
+                    container.checklistRepository,
                     container.notificationScheduler,
                 ) as T
             modelClass.isAssignableFrom(SearchViewModel::class.java) ->
                 SearchViewModel(
                     container.taskRepository,
                     container.projectRepository,
+                    container.checklistRepository,
                     container.notificationScheduler,
                 ) as T
             else -> error("Unknown VM: ${modelClass.name}")

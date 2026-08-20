@@ -33,6 +33,7 @@ data class ParsedTask(
     val dueTime: LocalTime? = null,
     val estimatedMinutes: Int? = null,
     val suggestedSlots: List<LocalTime> = emptyList(),
+    val checklist: List<String> = emptyList(),
     val priority: Priority = Priority.MEDIUM,
     val projectName: String? = null,
     val reminder: Boolean = true,

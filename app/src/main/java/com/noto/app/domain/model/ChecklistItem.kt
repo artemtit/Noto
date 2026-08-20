@@ -7,3 +7,9 @@ data class ChecklistItem(
     val text: String,
     val done: Boolean = false,
 )
+
+data class ChecklistProgress(
+    val taskId: Long,
+    val total: Int,
+    val done: Int,
+)

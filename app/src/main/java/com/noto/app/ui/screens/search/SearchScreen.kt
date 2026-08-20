@@ -68,6 +68,7 @@ fun SearchScreen(
                         SwipeableTaskRow(
                             task = t,
                             projectName = t.projectId?.let { state.projectsById[it]?.name },
+                            progress = state.progressById[t.id],
                             onToggle = { vm.toggle(t) },
                             onClick = { onOpenTask(t.id) },
                             onDelete = { vm.delete(t) },

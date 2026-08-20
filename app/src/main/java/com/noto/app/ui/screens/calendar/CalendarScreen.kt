@@ -71,6 +71,7 @@ fun CalendarScreen(
             date = state.selectedDate,
             tasks = state.selectedTasks,
             projectNames = { id -> state.projectsById[id]?.name },
+            progressById = state.progressById,
             onToggle = vm::toggle,
             onOpen = onOpenTask,
             onDelete = vm::delete,
@@ -249,6 +250,7 @@ private fun DaySection(
     date: LocalDate,
     tasks: List<Task>,
     projectNames: (Long) -> String?,
+    progressById: Map<Long, com.noto.app.domain.model.ChecklistProgress>,
     onToggle: (Task) -> Unit,
     onOpen: (Long) -> Unit,
     onDelete: (Task) -> Unit,
@@ -292,6 +294,7 @@ private fun DaySection(
                     SwipeableTaskRow(
                         task = t,
                         projectName = t.projectId?.let(projectNames),
+                        progress = progressById[t.id],
                         onToggle = { onToggle(t) },
                         onClick = { onOpen(t.id) },
                         onDelete = { onDelete(t) },

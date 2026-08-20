@@ -2,8 +2,10 @@ package com.noto.app.ui.screens.search
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.noto.app.data.repo.ChecklistRepository
 import com.noto.app.data.repo.ProjectRepository
 import com.noto.app.data.repo.TaskRepository
+import com.noto.app.domain.model.ChecklistProgress
 import com.noto.app.domain.model.Project
 import com.noto.app.domain.model.Task
 import com.noto.app.notifications.NotoNotificationScheduler
@@ -23,12 +25,14 @@ data class SearchUiState(
     val query: String = "",
     val results: List<Task> = emptyList(),
     val projectsById: Map<Long, Project> = emptyMap(),
+    val progressById: Map<Long, ChecklistProgress> = emptyMap(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class SearchViewModel(
     private val tasks: TaskRepository,
     private val projects: ProjectRepository,
+    private val checklists: ChecklistRepository,
     private val scheduler: NotoNotificationScheduler,
 ) : ViewModel() {
 
@@ -40,8 +44,14 @@ class SearchViewModel(
             if (s.isBlank()) flowOf(emptyList()) else tasks.search(s)
         },
         projects.observeAll(),
-    ) { query, list, projs ->
-        SearchUiState(query = query, results = list, projectsById = projs.associateBy { it.id })
+        checklists.observeAllProgress(),
+    ) { query, list, projs, progress ->
+        SearchUiState(
+            query = query,
+            results = list,
+            projectsById = projs.associateBy { it.id },
+            progressById = progress,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SearchUiState())
 
     fun setQuery(s: String) { q.value = s }

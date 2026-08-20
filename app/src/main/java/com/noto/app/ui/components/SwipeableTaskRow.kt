@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.noto.app.domain.model.ChecklistProgress
 import com.noto.app.domain.model.Task
 import com.noto.app.ui.theme.PriorityHigh
 import com.noto.app.ui.theme.PriorityLow
@@ -31,6 +32,7 @@ import com.noto.app.ui.theme.PriorityLow
 fun SwipeableTaskRow(
     task: Task,
     projectName: String?,
+    progress: ChecklistProgress? = null,
     onToggle: () -> Unit,
     onClick: () -> Unit,
     onDelete: () -> Unit,
@@ -102,6 +104,7 @@ fun SwipeableTaskRow(
         TaskRow(
             task = task,
             projectName = projectName,
+            progress = progress,
             onToggle = onToggle,
             onClick = onClick,
         )

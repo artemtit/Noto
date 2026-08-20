@@ -85,6 +85,8 @@ fun ReviewScreen(
                             projects = state.projects,
                             onChange = { updated -> vm.updateItem(item.id) { updated } },
                             onPickSlot = { slot -> vm.pickSlot(item.id, slot) },
+                            onAddChecklist = { text -> vm.addChecklistItem(item.id, text) },
+                            onRemoveChecklist = { index -> vm.removeChecklistItem(item.id, index) },
                             onRemove = { vm.remove(item.id) },
                         )
                     }
@@ -126,6 +128,8 @@ private fun ReviewRow(
     projects: List<com.noto.app.domain.model.Project>,
     onChange: (ReviewItem) -> Unit,
     onPickSlot: (LocalTime) -> Unit,
+    onAddChecklist: (String) -> Unit,
+    onRemoveChecklist: (Int) -> Unit,
     onRemove: () -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
@@ -210,6 +214,12 @@ private fun ReviewRow(
                 }
             }
         }
+
+        ReviewChecklist(
+            items = item.checklist,
+            onAdd = onAddChecklist,
+            onRemove = onRemoveChecklist,
+        )
     }
 
     if (showDate) {
@@ -339,6 +349,56 @@ private fun ReviewRow(
             },
             confirmButton = { TextButton(onClick = { showRecurrence = false }) { Text(stringResource(R.string.done)) } }
         )
+    }
+}
+
+@Composable
+private fun ReviewChecklist(
+    items: List<String>,
+    onAdd: (String) -> Unit,
+    onRemove: (Int) -> Unit,
+) {
+    val ru = java.util.Locale.getDefault().language == "ru"
+    var draft by remember { mutableStateOf("") }
+    var expanded by remember(items.isEmpty()) { mutableStateOf(items.isNotEmpty()) }
+
+    if (!expanded && items.isEmpty()) {
+        TextButton(onClick = { expanded = true }) {
+            Text(if (ru) "＋ Чек-лист" else "＋ Checklist")
+        }
+        return
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            if (ru) "Чек-лист" else "Checklist",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        items.forEachIndexed { index, text ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("•  ", style = MaterialTheme.typography.bodyMedium)
+                Text(text, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                IconButton(onClick = { onRemove(index) }) {
+                    Icon(Icons.Rounded.Close, contentDescription = null)
+                }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                placeholder = { Text(if (ru) "Пункт…" else "Item…") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                onClick = {
+                    if (draft.isNotBlank()) { onAdd(draft); draft = "" }
+                },
+                enabled = draft.isNotBlank(),
+            ) { Text("＋") }
+        }
     }
 }
 

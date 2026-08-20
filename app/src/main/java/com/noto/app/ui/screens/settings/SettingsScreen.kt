@@ -167,22 +167,29 @@ private fun RhythmRow(workStart: Int, workEnd: Int, onStart: (Int) -> Unit, onEn
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (ru) "С:" else "From:", modifier = Modifier.width(48.dp))
-            HourStepper(hour = workStart, onChange = onStart)
-            Spacer(Modifier.width(24.dp))
-            Text(if (ru) "До:" else "To:", modifier = Modifier.width(48.dp))
-            HourStepper(hour = workEnd, onChange = onEnd)
-        }
+        HourRow(label = if (ru) "С" else "From", hour = workStart, onChange = onStart)
+        HourRow(label = if (ru) "До" else "To", hour = workEnd, onChange = onEnd)
     }
 }
 
 @Composable
-private fun HourStepper(hour: Int, onChange: (Int) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = { onChange((hour - 1).coerceAtLeast(0)) }) { Text("−") }
-        Text("%02d:00".format(hour), style = MaterialTheme.typography.bodyLarge)
-        TextButton(onClick = { onChange((hour + 1).coerceAtMost(24)) }) { Text("+") }
+private fun HourRow(label: String, hour: Int, onChange: (Int) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        IconButton(onClick = { onChange((hour - 1).coerceAtLeast(0)) }) {
+            Text("−", style = MaterialTheme.typography.titleLarge)
+        }
+        Text(
+            "%02d:00".format(hour),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        IconButton(onClick = { onChange((hour + 1).coerceAtMost(24)) }) {
+            Text("+", style = MaterialTheme.typography.titleLarge)
+        }
     }
 }
 

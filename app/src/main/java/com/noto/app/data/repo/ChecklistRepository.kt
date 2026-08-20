@@ -3,6 +3,7 @@ package com.noto.app.data.repo
 import com.noto.app.data.db.ChecklistDao
 import com.noto.app.data.entity.ChecklistItemEntity
 import com.noto.app.domain.model.ChecklistItem
+import com.noto.app.domain.model.ChecklistProgress
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -10,6 +11,9 @@ class ChecklistRepository(private val dao: ChecklistDao) {
 
     fun observe(taskId: Long): Flow<List<ChecklistItem>> =
         dao.observeByTask(taskId).map { list -> list.map { it.toModel() } }
+
+    fun observeAllProgress(): Flow<Map<Long, ChecklistProgress>> =
+        dao.observeAllProgress().map { list -> list.associateBy { it.taskId } }
 
     suspend fun add(taskId: Long, text: String): Long {
         val trimmed = text.trim()
